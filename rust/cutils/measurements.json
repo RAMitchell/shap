@@ -1,0 +1,262 @@
+{
+  "scope": "One-function opt-in PyO3/rust-numpy experiment; C++ retained for comparison; no PR",
+  "base_commit": "c61c426d35e256697c2ee65f7fb9c63ee21f8fd9",
+  "environment": {
+    "platform": "Linux-7.0.0-31-generic-x86_64-with-glibc2.39",
+    "python": "3.13.13",
+    "rust": "1.99.0",
+    "minimum_rust_from_locked_dependencies": "1.83",
+    "measurement_date": "2026-10-15"
+  },
+  "source_lines_including_imports_comments_blank_lines": {
+    "shap/cutils/kernel_explainer_utils.h": 45,
+    "rust/cutils/src/lib.rs": 55,
+    "rust/cutils/Cargo.toml": 20,
+    "rust/cutils/build.rs": 3,
+    "rust/cutils/Cargo.lock": 229,
+    "cmake/RustCutils.cmake": 43,
+    ".github/workflows/rust_cutils.yml": 68
+  },
+  "dependencies": {
+    "added_python_build_or_runtime_packages": [],
+    "direct_cargo": {
+      "numpy": "0.29.0",
+      "pyo3": "0.29.3"
+    },
+    "direct_build_cargo": {
+      "pyo3-build-config": "0.29.3"
+    },
+    "locked_external_crates": 24,
+    "crate_archives_download_bytes": 3656813,
+    "registry_logical_bytes": 22878705,
+    "toolchain_with_rustfmt_clippy_logical_bytes": 645977639,
+    "release_build_directory_logical_bytes": 97426120,
+    "runtime_shared_libraries_for_rust_module_linux": [
+      "libgcc_s.so.1",
+      "libc.so.6",
+      "ld-linux-x86-64.so.2"
+    ],
+    "lock": [
+      {
+        "name": "autocfg",
+        "version": "1.5.1"
+      },
+      {
+        "name": "heck",
+        "version": "0.5.0"
+      },
+      {
+        "name": "libc",
+        "version": "0.2.190"
+      },
+      {
+        "name": "matrixmultiply",
+        "version": "0.3.11"
+      },
+      {
+        "name": "ndarray",
+        "version": "0.17.2"
+      },
+      {
+        "name": "num-complex",
+        "version": "0.4.6"
+      },
+      {
+        "name": "num-integer",
+        "version": "0.1.47"
+      },
+      {
+        "name": "num-traits",
+        "version": "0.2.19"
+      },
+      {
+        "name": "numpy",
+        "version": "0.29.0"
+      },
+      {
+        "name": "once_cell",
+        "version": "1.21.4"
+      },
+      {
+        "name": "portable-atomic",
+        "version": "1.15.0"
+      },
+      {
+        "name": "portable-atomic-util",
+        "version": "0.2.8"
+      },
+      {
+        "name": "proc-macro2",
+        "version": "1.0.107"
+      },
+      {
+        "name": "pyo3",
+        "version": "0.29.3"
+      },
+      {
+        "name": "pyo3-build-config",
+        "version": "0.29.3"
+      },
+      {
+        "name": "pyo3-ffi",
+        "version": "0.29.3"
+      },
+      {
+        "name": "pyo3-macros",
+        "version": "0.29.3"
+      },
+      {
+        "name": "pyo3-macros-backend",
+        "version": "0.29.3"
+      },
+      {
+        "name": "quote",
+        "version": "1.0.47"
+      },
+      {
+        "name": "rawpointer",
+        "version": "0.2.1"
+      },
+      {
+        "name": "rustc-hash",
+        "version": "2.1.3"
+      },
+      {
+        "name": "syn",
+        "version": "2.0.119"
+      },
+      {
+        "name": "target-lexicon",
+        "version": "0.13.5"
+      },
+      {
+        "name": "unicode-ident",
+        "version": "1.0.27"
+      }
+    ]
+  },
+  "wheel": {
+    "baseline_bytes": 553899,
+    "rust_enabled_bytes": 766987,
+    "added_bytes": 213088,
+    "rust_extension": {
+      "filename": "shap/_rust_cutils.abi3.so",
+      "uncompressed_bytes": 460864,
+      "compressed_bytes": 212921
+    }
+  },
+  "build_measurements": {
+    "method": "Single sequential local samples; clean build directories; package/toolchain/crate downloads excluded; no build isolation for timing; results are machine-specific",
+    "baseline_clean_wheel": {
+      "wall_seconds": 10.33,
+      "peak_rss_kib": 314492
+    },
+    "rust_clean_wheel": {
+      "wall_seconds": 15.4,
+      "peak_rss_kib": 471620
+    },
+    "rust_cached_wheel": {
+      "wall_seconds": 0.98,
+      "peak_rss_kib": 84108
+    },
+    "rust_only_clean_compile": {
+      "wall_seconds": 5.11,
+      "peak_rss_kib": 474864
+    },
+    "rust_only_cached_compile": {
+      "wall_seconds": 0.02,
+      "peak_rss_kib": 25316
+    }
+  },
+  "runtime_microbenchmark": {
+    "python": "3.13.13",
+    "platform": "Linux-7.0.0-31-generic-x86_64-with-glibc2.39",
+    "cases": [
+      {
+        "case": "binding_only",
+        "samples": 1,
+        "background_rows": 10,
+        "outputs": 1,
+        "seconds_per_call": {
+          "cpp": 3.793460875749588e-07,
+          "rust": 3.0695619992911814e-07
+        },
+        "rust_over_cpp": 0.8091719144683773
+      },
+      {
+        "case": "small",
+        "samples": 1,
+        "background_rows": 10,
+        "outputs": 1,
+        "seconds_per_call": {
+          "cpp": 3.8376716896891596e-07,
+          "rust": 3.3081558998674154e-07
+        },
+        "rust_over_cpp": 0.862021602513728
+      },
+      {
+        "case": "medium",
+        "samples": 128,
+        "background_rows": 100,
+        "outputs": 4,
+        "seconds_per_call": {
+          "cpp": 5.971496329479611e-05,
+          "rust": 3.098583655412664e-05
+        },
+        "rust_over_cpp": 0.5188956811571367
+      },
+      {
+        "case": "large",
+        "samples": 512,
+        "background_rows": 100,
+        "outputs": 8,
+        "seconds_per_call": {
+          "cpp": 0.00045637607884903747,
+          "rust": 0.00011702126357704401
+        },
+        "rust_over_cpp": 0.2564141045082096
+      },
+      {
+        "case": "strided",
+        "samples": 128,
+        "background_rows": 100,
+        "outputs": 4,
+        "seconds_per_call": {
+          "cpp": 6.1113267330472e-05,
+          "rust": 3.136496645273621e-05
+        },
+        "rust_over_cpp": 0.5132267971065779
+      }
+    ]
+  },
+  "validation": {
+    "normal_python_rust_and_kernel_tests": {
+      "passed": 72,
+      "skipped": 2,
+      "notes": "one existing kernel skip and one free-threaded-only test"
+    },
+    "default_cpp_kernel_tests": {
+      "passed": 37,
+      "skipped": 1
+    },
+    "free_threaded_python": {
+      "version": "3.14.8t",
+      "wheel_build": "passed",
+      "gil_disabled_concurrent_calls": 100,
+      "whole_shap_stack_gil_free": "not claimed"
+    },
+    "python_313t": "Rejected by PyO3 0.29; not a supported Rust-enabled build",
+    "mypy": "passed, 150 source files",
+    "cargo_fmt": "passed",
+    "cargo_clippy": "passed with -D warnings",
+    "pre_commit_changed_files": "passed",
+    "sdist_to_isolated_rust_wheel": "passed",
+    "hosted_ci": "Workflow added but not executed; only Linux tested locally",
+    "macos_windows_arm_cross_and_wasm": "Not validated; CMake explicitly rejects cross/Pyodide and macOS universal builds"
+  },
+  "contract_differences": [
+    "Rust inputs require exact float64 NumPy arrays; C++ permits implicit dtype conversions. KernelExplainer already provides float64 arrays.",
+    "Rust accepts read-only inputs and rejects overlapping output/input borrows with a Python error."
+  ],
+  "enable_command": "python -m pip install . -Ccmake.define.SHAP_BUILD_RUST_CUTILS=ON"
+}

@@ -78,6 +78,11 @@ endif()
 # Install the module to shap
 install(TARGETS _cutils LIBRARY DESTINATION ${SKBUILD_PROJECT_NAME})
 
+option(SHAP_BUILD_RUST_CUTILS "Build the experimental PyO3 KernelExplainer utility" OFF)
+if(SHAP_BUILD_RUST_CUTILS)
+  include(cmake/RustCutils.cmake)
+endif()
+
 # ==============================================================================
 # Build the Tree Logic extension module (cext)
 # ==============================================================================

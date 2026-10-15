@@ -18,7 +18,6 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from tqdm.auto import tqdm
 
-from .._cutils import compute_exp_val
 from .._explanation import Explanation
 from ..utils import safe_isinstance
 from ..utils._exceptions import DimensionError
@@ -34,6 +33,14 @@ from ..utils._legacy import (
     match_model_to_data,
 )
 from ._explainer import Explainer
+
+try:
+    from .._rust_cutils import compute_exp_val
+except ModuleNotFoundError as exc:
+    if exc.name != "shap._rust_cutils":
+        raise
+    from .._cutils import compute_exp_val
+
 
 log = logging.getLogger("shap")
 

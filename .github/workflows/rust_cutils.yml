@@ -1,0 +1,68 @@
+name: Experimental Rust cutils
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "rust/**"
+      - "scripts/*rust_cutils*.py"
+      - "cmake/RustCutils.cmake"
+      - "CMakeLists.txt"
+      - "pyproject.toml"
+      - "shap/explainers/_kernel.py"
+      - "shap/_rust_cutils.pyi"
+      - "tests/explainers/test_rust_cutils.py"
+      - ".github/workflows/rust_cutils.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  rust_cutils:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14, windows-latest]
+        python: ["3.13"]
+        include:
+          - os: ubuntu-latest
+            python: "3.14t"
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal --component rustfmt,clippy
+          rustup default 1.99.0
+      - name: Cache Cargo registry and release build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            build
+          key: rust-cutils-${{ runner.os }}-${{ runner.arch }}-${{ matrix.python }}-1.99.0-${{ hashFiles('rust/cutils/Cargo.lock') }}
+      - name: Check Rust formatting and lints
+        run: |
+          cargo fmt --manifest-path rust/cutils/Cargo.toml --check
+          cargo clippy --manifest-path rust/cutils/Cargo.toml --locked -- -D warnings
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - name: Build and install the opt-in Rust wheel
+        if: matrix.python != '3.14t'
+        run: uv pip install --system . --group test-core --group plots --config-settings-package shap:cmake.define.SHAP_BUILD_RUST_CUTILS=ON
+      - name: Check types
+        if: matrix.python != '3.14t'
+        run: mypy shap tests
+      - name: Run parity and KernelExplainer tests against the installed wheel
+        if: matrix.python != '3.14t'
+        working-directory: ${{ runner.temp }}
+        run: python -P -m pytest "${{ github.workspace }}/tests/explainers/test_rust_cutils.py" "${{ github.workspace }}/tests/explainers/test_kernel.py" --import-mode=append -q
+      - name: Build and test the free-threaded extension in isolation
+        if: matrix.python == '3.14t'
+        run: |
+          uv pip install --system --only-binary=:all: numpy==2.3.5 build nanobind scikit-build-core setuptools-scm ninja
+          python -m build --wheel --no-isolation --outdir rust-wheels -Cbuild-dir=build/rust-free-ci -Ccmake.define.SHAP_BUILD_RUST_CUTILS=ON
+          python scripts/check_rust_cutils_free_threading.py build/rust-free-ci/rust-target/release/lib_rust_cutils.so

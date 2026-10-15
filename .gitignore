@@ -51,3 +51,7 @@ uv.lock
 # Performance monitoring using asv
 monitoring/html/
 monitoring/results/
+
+# Experimental Rust cutils
+/rust/cutils/target/
+!/shap/_rust_cutils.pyi
