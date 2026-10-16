@@ -152,9 +152,18 @@ inline transform_f get_transform(unsigned model_transform) {
     return transform;
 }
 
-inline bool category_in_threshold(float threshold, float category) {
-    int category_flag = (1 << (int(category) - 1));
-    return (int(threshold) & category_flag) != 0;
+// Categorical splits store the categories that go left as a bitmask in the threshold
+// (bit c set for category c). As in LightGBM, the feature value is truncated toward
+// zero to get its category, and negative values never match.
+inline bool category_in_threshold(tfloat threshold, tfloat category) {
+    if (!(category > -1) || category >= 53) return false;
+    const unsigned long long category_flag = 1ULL << static_cast<unsigned>(category);
+    return (static_cast<unsigned long long>(threshold) & category_flag) != 0;
+}
+
+inline bool split_goes_left(int threshold_type, tfloat threshold, tfloat value) {
+    if (threshold_type == 1) return category_in_threshold(threshold, value);
+    return value <= threshold;
 }
 
 inline tfloat *tree_predict(unsigned i, const TreeEnsemble &trees, const tfloat *x, const bool *x_missing) {
@@ -172,9 +181,7 @@ inline tfloat *tree_predict(unsigned i, const TreeEnsemble &trees, const tfloat 
         // otherwise we are at an internal node and need to recurse
         if (x_missing[feature]) {
             node = trees.children_default[pos];
-        } else if (trees.threshold_types[pos] == 0 && x[feature] <= trees.thresholds[pos]) {
-            node = trees.children_left[pos];
-        } else if (trees.threshold_types[pos] == 1 && category_in_threshold(trees.thresholds[pos], x[feature])) {
+        } else if (split_goes_left(trees.threshold_types[pos], trees.thresholds[pos], x[feature])) {
             node = trees.children_left[pos];
         } else {
             node = trees.children_right[pos];
@@ -236,9 +243,7 @@ inline void tree_update_weights(unsigned i, TreeEnsemble &trees, const tfloat *x
         // otherwise we are at an internal node and need to recurse
         if (x_missing[feature]) {
             node = trees.children_default[pos];
-        } else if (trees.threshold_types[pos] == 0 && x[feature] <= trees.thresholds[pos]) {
-            node = trees.children_left[pos];
-        } else if (trees.threshold_types[pos] == 1 && category_in_threshold(trees.thresholds[pos], x[feature])) {
+        } else if (split_goes_left(trees.threshold_types[pos], trees.thresholds[pos], x[feature])) {
             node = trees.children_left[pos];
         }
          else {
@@ -275,7 +280,7 @@ inline void tree_saabas(tfloat *out, const TreeEnsemble &tree, const Explanation
         const unsigned feature = tree.features[curr_node];
         if (data.X_missing[feature]) {
             next_node = tree.children_default[curr_node];
-        } else if (data.X[feature] <= tree.thresholds[curr_node]) {
+        } else if (split_goes_left(tree.threshold_types[curr_node], tree.thresholds[curr_node], data.X[feature])) {
             next_node = tree.children_left[curr_node];
         } else {
             next_node = tree.children_right[curr_node];
@@ -424,15 +429,11 @@ inline void tree_shap_recursive(const unsigned num_outputs, const int *children_
     } else {
         // find which branch is "hot" (meaning x would follow it)
         unsigned hot_index = 0;
-        int type = threshold_types[node_index];
         if (x_missing[split_index]) {
             hot_index = children_default[node_index];
-        } else if (type == 0 && x[split_index] <= thresholds[node_index]) {
+        } else if (split_goes_left(threshold_types[node_index], thresholds[node_index], x[split_index])) {
             hot_index = children_left[node_index];
-        } else if (type == 1 && category_in_threshold(thresholds[node_index], x[split_index])) {
-            hot_index = children_left[node_index];
-        }
-        else {
+        } else {
             hot_index = children_right[node_index];
         }
         const unsigned cold_index = (static_cast<int>(hot_index) == children_left[node_index] ?
@@ -543,7 +544,9 @@ inline void tree_shap(const TreeEnsemble& tree, const ExplanationDataset &data,
 struct Node {
     int cl, cr, cd, pnode; // was int16; node indices can exceed 2^15 - 1, see GH#3486
     long feat, pfeat;
-    float thres, value;
+    tfloat thres;
+    float value;
+    int thres_type;
     char from_flag;
 };
 
@@ -583,13 +586,16 @@ inline void tree_shap_indep(const unsigned max_depth, const unsigned num_feats,
     long feat, pfeat = -1;
     int next_xnode = -1, next_rnode = -1;
     int next_node = -1, from_child = -1;
-    float thres, pos_x = 0, neg_x = 0, pos_r = 0, neg_r = 0;
+    tfloat thres;
+    int thres_type;
+    float pos_x = 0, neg_x = 0, pos_r = 0, neg_r = 0;
     char from_flag;
     unsigned M = 0, N = 0;
 
     Node curr_node = mytree[node];
     feat = curr_node.feat;
     thres = curr_node.thres;
+    thres_type = curr_node.thres_type;
     cl = curr_node.cl;
     cr = curr_node.cr;
     cd = curr_node.cd;
@@ -608,18 +614,18 @@ inline void tree_shap_indep(const unsigned max_depth, const unsigned num_feats,
 
     if (x_missing[feat]) {
         next_xnode = cd;
-    } else if (x[feat] > thres) {
-        next_xnode = cr;
-    } else if (x[feat] <= thres) {
+    } else if (split_goes_left(thres_type, thres, x[feat])) {
         next_xnode = cl;
+    } else {
+        next_xnode = cr;
     }
 
     if (r_missing[feat]) {
         next_rnode = cd;
-    } else if (r[feat] > thres) {
-        next_rnode = cr;
-    } else if (r[feat] <= thres) {
+    } else if (split_goes_left(thres_type, thres, r[feat])) {
         next_rnode = cl;
+    } else {
+        next_rnode = cr;
     }
 
     if (next_xnode != next_rnode) {
@@ -653,6 +659,7 @@ inline void tree_shap_indep(const unsigned max_depth, const unsigned num_feats,
         curr_node = mytree[node];
         feat = curr_node.feat;
         thres = curr_node.thres;
+        thres_type = curr_node.thres_type;
         cl = curr_node.cl;
         cr = curr_node.cr;
         cd = curr_node.cd;
@@ -715,8 +722,8 @@ inline void tree_shap_indep(const unsigned max_depth, const unsigned num_feats,
             continue;
         }
 
-        const bool x_right = x[feat] > thres;
-        const bool r_right = r[feat] > thres;
+        const bool x_right = !split_goes_left(thres_type, thres, x[feat]);
+        const bool r_right = !split_goes_left(thres_type, thres, r[feat]);
 
         if (x_missing[feat]) {
             next_xnode = cd;
@@ -976,6 +983,7 @@ inline void dense_independent(const TreeEnsemble& trees, const ExplanationDatase
             }
 
             node_tree[j].thres = trees.thresholds[en_ind];
+            node_tree[j].thres_type = trees.threshold_types[en_ind];
             node_tree[j].feat = trees.features[en_ind];
         }
     }

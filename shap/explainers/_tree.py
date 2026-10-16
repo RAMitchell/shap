@@ -1798,6 +1798,10 @@ class TreeEnsemble:
                 return output_array
 
 
+# Largest category that fits in the float64 bitmask used for categorical split thresholds.
+_MAX_BITMASK_CATEGORY = 52
+
+
 class SingleTree:
     """A single decision tree.
 
@@ -2018,11 +2022,16 @@ class SingleTree:
                         self.thresholds[vsplit_idx] = vertex["threshold"]
                         self.threshold_types[vsplit_idx] = 0
                     elif isinstance(vertex["threshold"], str):
-                        threshold = 0.0
+                        # Encode the categories that go left as a bitmask (bit `c` set for
+                        # category `c`) stored in a float64, which represents it exactly as
+                        # long as no category exceeds _MAX_BITMASK_CATEGORY.
                         categories = [int(x) for x in vertex["threshold"].split("||")]
-                        for cat in categories:
-                            threshold += 2 ** (cat - 1)
-                        self.thresholds[vsplit_idx] = threshold
+                        if min(categories) < 0 or max(categories) > _MAX_BITMASK_CATEGORY:
+                            raise ValueError(
+                                f"LightGBM categorical splits are only supported for categories in "
+                                f"[0, {_MAX_BITMASK_CATEGORY}], got {categories}."
+                            )
+                        self.thresholds[vsplit_idx] = float(sum(1 << cat for cat in set(categories)))
                         self.threshold_types[vsplit_idx] = 1  # Indicates that this is a categorical split
                     else:
                         raise TypeError(f"Threshold type {type(vertex['threshold'])} not supported")

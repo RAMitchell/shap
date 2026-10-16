@@ -425,6 +425,68 @@ def test_lightgbm_mse_regressor():
     _common_lightgbm_regressor_test(create_model)
 
 
+def test_lightgbm_categorical_splits_match_lightgbm_predict():
+    """shap's converted trees must route categorical splits exactly like LightGBM.
+
+    Category 0 used to be encoded as a fractional bit and was never matched, so rows
+    mixing feature values from different samples could be predicted differently.
+    """
+    lightgbm = pytest.importorskip("lightgbm")
+    rng = np.random.default_rng(0)
+    n = 1000
+    X = np.c_[rng.integers(0, 6, n), rng.normal(size=n), rng.integers(0, 4, n), rng.normal(size=n)].astype(float)
+    y = np.isin(X[:, 0], [1, 3, 4]) * 2.0 + X[:, 1] + (X[:, 2] == 2) + 0.1 * rng.normal(size=n)
+    model = lightgbm.LGBMRegressor(n_estimators=10, num_leaves=15, min_child_samples=5, verbose=-1)
+    model.fit(X, y, categorical_feature=[0, 2])
+
+    background = X[:5]
+    ex = shap.TreeExplainer(model, background, feature_perturbation="interventional")
+
+    # The splits must include category 0 and a multi-category set.
+    split_categories = [
+        {c for c in range(53) if int(t) >> c & 1} for t in ex.model.thresholds[ex.model.threshold_types == 1]
+    ]
+    assert any(0 in cats for cats in split_categories)
+    assert any(len(cats) > 1 for cats in split_categories)
+
+    # Hybrid rows mixing features from explained rows and background rows.
+    hybrid = np.array(
+        [
+            np.where([(mask >> k) & 1 for k in range(4)], x, r)
+            for x in X[100:104]
+            for r in background
+            for mask in range(16)
+        ]
+    )
+    # Edge values: category 0, fractional, negative, missing, unseen and huge categories.
+    vals = [0, 1, 2, 3, 4, 5, -1, -0.5, np.nan, 0.5, 2.7, 6, 40, 1e10]
+    edge = np.array([[a, 0.3, b, -0.2] for a, b in itertools.product(vals, vals)])
+    for Z in (hybrid, edge):
+        np.testing.assert_allclose(ex.model.predict(Z), model.predict(Z), rtol=0, atol=1e-10)
+
+    # Interventional SHAP values must be additive with respect to LightGBM's own predictions
+    # (up to the float32 accumulation used by the interventional algorithm).
+    shap_values = ex.shap_values(X[100:110])
+    np.testing.assert_allclose(shap_values.sum(1) + ex.expected_value, model.predict(X[100:110]), rtol=0, atol=1e-6)
+
+
+def test_lightgbm_categorical_split_unrepresentable_category():
+    """Categories too large for the float64 bitmask are not converted to shap's trees."""
+    lightgbm = pytest.importorskip("lightgbm")
+    rng = np.random.default_rng(0)
+    n = 500
+    X = np.c_[rng.choice([3, 60], n), rng.normal(size=n)].astype(float)
+    y = (X[:, 0] == 60) * 2.0 + X[:, 1]
+    model = lightgbm.LGBMRegressor(n_estimators=2, num_leaves=4, min_child_samples=5, verbose=-1)
+    model.fit(X, y, categorical_feature=[0])
+
+    ex = shap.TreeExplainer(model)
+    assert ex.model.trees is None
+    # tree_path_dependent explanations still work via LightGBM's native pred_contrib.
+    shap_values = ex.shap_values(X[:10])
+    np.testing.assert_allclose(shap_values.sum(1) + ex.expected_value, model.predict(X[:10]), atol=1e-6)
+
+
 def _common_lightgbm_nonsklearn_api(dataset, params, validation):
     import lightgbm
     from sklearn.model_selection import train_test_split
